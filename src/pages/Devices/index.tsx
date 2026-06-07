@@ -46,6 +46,8 @@ const DeviceList: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [showDetail, setShowDetail] = useState(false);
   const [selectedDeviceLocal, setSelectedDeviceLocal] = useState<Device | null>(null);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrDevice, setQrDevice] = useState<Device | null>(null);
 
   const filteredDevices = devices.filter((device) => {
     const matchesSearch = device.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -101,6 +103,12 @@ const DeviceList: React.FC = () => {
     setSelectedDeviceLocal(device);
     setSelectedDevice(device);
     setShowDetail(true);
+  };
+
+  const openQRCode = (device: Device, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setQrDevice(device);
+    setShowQRModal(true);
   };
 
   return (
@@ -232,6 +240,7 @@ const DeviceList: React.FC = () => {
                         </button>
                         <button
                           className="p-1.5 text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-md transition-colors"
+                          onClick={(e) => openQRCode(device, e)}
                           title="查看二维码"
                         >
                           <QrCode size={16} />
@@ -407,6 +416,40 @@ const DeviceList: React.FC = () => {
                   创建工单
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showQRModal && qrDevice && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm animate-slide-up">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">资产二维码</h3>
+              <button
+                className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+                onClick={() => setShowQRModal(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 text-center">
+              <div className="bg-white p-6 rounded-xl border-2 border-slate-100 inline-block">
+                <QRCodeSVG value={qrDevice.qrCode} size={180} level="H" includeMargin />
+              </div>
+              <div className="mt-6">
+                <h4 className="font-semibold text-slate-900 text-lg">{qrDevice.name}</h4>
+                <p className="text-slate-500 mt-1">设备编号：{qrDevice.id}</p>
+                <p className="text-sm text-slate-400 mt-2">{qrDevice.typeName} · {qrDevice.location}</p>
+              </div>
+              <div className="mt-6 bg-slate-50 rounded-xl p-4">
+                <p className="text-xs text-slate-500">扫码可查看设备详情和快速报修</p>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200">
+              <button className="btn btn-secondary w-full" onClick={() => setShowQRModal(false)}>
+                关闭
+              </button>
             </div>
           </div>
         </div>

@@ -51,6 +51,9 @@ interface AppState {
   updateWorkOrderStatus: (id: string, status: WorkOrder['status']) => void;
   assignWorkOrder: (workOrderId: string, userId: string) => void;
   addWorkOrder: (workOrder: Omit<WorkOrder, 'id' | 'createTime'>) => void;
+  checkInWorkOrder: (id: string) => void;
+  completeWorkOrder: (id: string, remark?: string) => void;
+  addWorkOrderPhoto: (id: string, photoUrl: string) => void;
   updateInspectionItem: (taskId: string, itemId: string, result: 'normal' | 'abnormal', remark: string) => void;
 }
 
@@ -83,7 +86,46 @@ export const useAppStore = create<AppState>((set) => ({
           ? {
               ...wo,
               status,
-              completeTime: status === 'completed' ? new Date().toISOString() : wo.completeTime
+              completeTime: status === 'completed' ? new Date().toLocaleString('zh-CN') : wo.completeTime
+            }
+          : wo
+      )
+    })),
+
+  checkInWorkOrder: (id) =>
+    set((state) => ({
+      workOrders: state.workOrders.map((wo) =>
+        wo.id === id
+          ? {
+              ...wo,
+              status: 'in_progress',
+              checkInTime: new Date().toLocaleString('zh-CN')
+            }
+          : wo
+      )
+    })),
+
+  completeWorkOrder: (id, remark) =>
+    set((state) => ({
+      workOrders: state.workOrders.map((wo) =>
+        wo.id === id
+          ? {
+              ...wo,
+              status: 'completed',
+              completeTime: new Date().toLocaleString('zh-CN'),
+              remark: remark || wo.remark
+            }
+          : wo
+      )
+    })),
+
+  addWorkOrderPhoto: (id, photoUrl) =>
+    set((state) => ({
+      workOrders: state.workOrders.map((wo) =>
+        wo.id === id
+          ? {
+              ...wo,
+              photos: [...wo.photos, photoUrl]
             }
           : wo
       )

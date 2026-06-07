@@ -13,7 +13,8 @@ import {
   ChevronRight,
   MapPin,
   User,
-  CheckSquare
+  CheckSquare,
+  MessageSquare
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -24,7 +25,12 @@ const Inspection: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'inspection' | 'maintenance'>('inspection');
   const [showDetail, setShowDetail] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<InspectionTask | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [showAbnormalModal, setShowAbnormalModal] = useState(false);
+  const [abnormalItemId, setAbnormalItemId] = useState<string | null>(null);
+  const [abnormalRemark, setAbnormalRemark] = useState('');
+
+  const selectedTask = inspectionTasks.find(t => t.id === selectedTaskId) || null;
 
   const filteredTasks = inspectionTasks.filter((task) =>
     task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -52,10 +58,21 @@ const Inspection: React.FC = () => {
 
   const handleItemResult = (taskId: string, itemId: string, result: 'normal' | 'abnormal', remark: string = '') => {
     updateInspectionItem(taskId, itemId, result, remark);
-    if (selectedTask) {
-      const updated = inspectionTasks.find(t => t.id === taskId);
-      if (updated) setSelectedTask(updated);
+  };
+
+  const handleAbnormalClick = (itemId: string) => {
+    setAbnormalItemId(itemId);
+    setAbnormalRemark('');
+    setShowAbnormalModal(true);
+  };
+
+  const confirmAbnormal = () => {
+    if (selectedTaskId && abnormalItemId) {
+      handleItemResult(selectedTaskId, abnormalItemId, 'abnormal', abnormalRemark);
     }
+    setShowAbnormalModal(false);
+    setAbnormalItemId(null);
+    setAbnormalRemark('');
   };
 
   return (
@@ -123,7 +140,7 @@ const Inspection: React.FC = () => {
               <div
                 key={task.id}
                 className="card card-hover p-5 cursor-pointer"
-                onClick={() => { setSelectedTask(task); setShowDetail(true); }}
+                onClick={() => { setSelectedTaskId(task.id); setShowDetail(true); }}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4">
@@ -201,7 +218,13 @@ const Inspection: React.FC = () => {
                     <td className="table-cell font-medium text-slate-900">{plan.deviceName}</td>
                     <td className="table-cell text-slate-600">{plan.type}</td>
                     <td className="table-cell text-slate-600">
-                      每 {plan.cycle} {plan.cycleUnit === 'month' ? '个月' : plan.cycleUnit === 'year' ? '年' : plan.cycleUnit === 'week' ? '周' : '天'}
+                      {plan.cycleUnit === 'quarter' ? (
+                        <>每 {plan.cycle * 3} 个月（季度）</>
+                      ) : plan.cycleUnit === 'year' ? (
+                        <>每 {plan.cycle} 年</>
+                      ) : (
+                        <>每 {plan.cycle} {plan.cycleUnit === 'month' ? '个月' : plan.cycleUnit === 'week' ? '周' : '天'}</>
+                      )}
                     </td>
                     <td className="table-cell text-slate-600">{plan.lastDate}</td>
                     <td className="table-cell text-slate-600">{plan.nextDate}</td>
@@ -253,6 +276,21 @@ const Inspection: React.FC = () => {
                 </span>
               </div>
 
+              <div className="bg-slate-50 rounded-xl p-4 mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-slate-700">检查进度</span>
+                  <span className="text-sm font-semibold text-slate-900">
+                    {selectedTask.items.filter(i => i.result !== null).length} / {selectedTask.items.length}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-2.5">
+                  <div
+                    className="bg-primary-500 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${(selectedTask.items.filter(i => i.result !== null).length / selectedTask.items.length) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+
               <h4 className="font-semibold text-slate-900 mb-4">检查项清单</h4>
               <div className="space-y-3">
                 {selectedTask.items.map((item, idx) => (
@@ -274,8 +312,9 @@ const Inspection: React.FC = () => {
                           </p>
                           <p className="text-sm text-slate-500">{item.deviceName}</p>
                           {item.remark && (
-                            <p className="text-sm text-slate-600 mt-1 bg-white rounded-lg p-2">
-                              备注：{item.remark}
+                            <p className="text-sm text-danger-600 mt-2 bg-danger-50 rounded-lg p-2.5 flex items-start gap-2">
+                              <MessageSquare size={14} className="mt-0.5 shrink-0" />
+                              <span>异常说明：{item.remark}</span>
                             </p>
                           )}
                         </div>
@@ -289,7 +328,7 @@ const Inspection: React.FC = () => {
                                 ? 'bg-success-500 text-white'
                                 : 'bg-white border border-slate-300 text-slate-700 hover:bg-success-50 hover:border-success-300'
                             )}
-                            onClick={() => handleItemResult(selectedTask.id, item.id, 'normal')}
+                            onClick={() => selectedTaskId && handleItemResult(selectedTaskId, item.id, 'normal')}
                           >
                             正常
                           </button>
@@ -300,7 +339,7 @@ const Inspection: React.FC = () => {
                                 ? 'bg-danger-500 text-white'
                                 : 'bg-white border border-slate-300 text-slate-700 hover:bg-danger-50 hover:border-danger-300'
                             )}
-                            onClick={() => handleItemResult(selectedTask.id, item.id, 'abnormal')}
+                            onClick={() => handleAbnormalClick(item.id)}
                           >
                             异常
                           </button>
@@ -320,6 +359,42 @@ const Inspection: React.FC = () => {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAbnormalModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md animate-slide-up">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">记录异常</h3>
+              <button
+                className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full"
+                onClick={() => setShowAbnormalModal(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-slate-600">请描述该检查项的异常情况：</p>
+              <div>
+                <label className="label">异常说明</label>
+                <textarea
+                  className="input min-h-[120px] resize-none"
+                  placeholder="请详细描述异常情况，如设备故障现象、严重程度等..."
+                  value={abnormalRemark}
+                  onChange={(e) => setAbnormalRemark(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
+              <button className="btn btn-secondary" onClick={() => setShowAbnormalModal(false)}>取消</button>
+              <button className="btn btn-danger" onClick={confirmAbnormal}>
+                <AlertTriangle size={16} className="mr-2" />
+                确认异常
+              </button>
             </div>
           </div>
         </div>

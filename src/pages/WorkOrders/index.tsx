@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ClipboardList,
   Plus,
@@ -14,7 +14,9 @@ import {
   X,
   UserPlus,
   CheckSquare,
-  ChevronRight
+  ChevronRight,
+  ImagePlus,
+  Upload
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -38,14 +40,17 @@ const priorityOptions: { value: 'all' | WorkOrderPriority; label: string }[] = [
 ];
 
 const WorkOrderList: React.FC = () => {
-  const { workOrders, users, devices, assignWorkOrder, updateWorkOrderStatus, addWorkOrder } = useAppStore();
+  const { workOrders, users, devices, assignWorkOrder, checkInWorkOrder, completeWorkOrder, addWorkOrder, addWorkOrderPhoto } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | WorkOrderStatus>('all');
   const [priorityFilter, setPriorityFilter] = useState<'all' | WorkOrderPriority>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
-  const [selectedWO, setSelectedWO] = useState<WorkOrder | null>(null);
+  const [selectedWOId, setSelectedWOId] = useState<string | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [completeRemark, setCompleteRemark] = useState('');
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [newWO, setNewWO] = useState({
     title: '',
@@ -55,6 +60,8 @@ const WorkOrderList: React.FC = () => {
     reporterPhone: '',
     priority: 'medium' as WorkOrderPriority
   });
+
+  const selectedWO = workOrders.find(wo => wo.id === selectedWOId) || null;
 
   const filteredWO = workOrders.filter((wo) => {
     const matchesSearch = wo.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -135,17 +142,42 @@ const WorkOrderList: React.FC = () => {
   const handleAssign = (woId: string, userId: string) => {
     assignWorkOrder(woId, userId);
     setShowAssignModal(false);
-    setSelectedWO(null);
   };
 
   const handleCheckIn = (woId: string) => {
-    updateWorkOrderStatus(woId, 'in_progress');
-    setShowDetail(false);
+    checkInWorkOrder(woId);
   };
 
-  const handleComplete = (woId: string) => {
-    updateWorkOrderStatus(woId, 'completed');
-    setShowDetail(false);
+  const handleComplete = () => {
+    if (selectedWOId) {
+      completeWorkOrder(selectedWOId, completeRemark);
+      setShowCompleteModal(false);
+      setCompleteRemark('');
+    }
+  };
+
+  const handleAddPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && selectedWOId) {
+      const fakePhotoUrl = URL.createObjectURL(file);
+      addWorkOrderPhoto(selectedWOId, fakePhotoUrl);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleAddMockPhoto = () => {
+    if (selectedWOId) {
+      const mockPhotos = [
+        'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=300&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=300&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=300&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300&h=300&fit=crop'
+      ];
+      const randomPhoto = mockPhotos[Math.floor(Math.random() * mockPhotos.length)];
+      addWorkOrderPhoto(selectedWOId, randomPhoto);
+    }
   };
 
   const engineerUsers = users.filter(u => u.role === 'engineer' || u.role === 'supervisor');
@@ -206,7 +238,7 @@ const WorkOrderList: React.FC = () => {
           <div
             key={wo.id}
             className="card card-hover p-5 cursor-pointer"
-            onClick={() => { setSelectedWO(wo); setShowDetail(true); }}
+            onClick={() => { setSelectedWOId(wo.id); setShowDetail(true); }}
           >
             <div className="flex items-start justify-between">
               <div className="flex items-start space-x-4">
@@ -443,12 +475,52 @@ const WorkOrderList: React.FC = () => {
               </div>
 
               <div className="mt-6">
-                <h5 className="font-semibold text-slate-900 mb-3">维修照片</h5>
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="font-semibold text-slate-900">维修照片</h5>
+                  {selectedWO.status === 'in_progress' && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleAddPhoto}
+                      />
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload size={14} className="mr-1.5" />
+                        上传照片
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={handleAddMockPhoto}
+                      >
+                        <ImagePlus size={14} className="mr-1.5" />
+                        模拟添加
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {selectedWO.photos.length > 0 ? (
                   <div className="grid grid-cols-4 gap-3">
                     {selectedWO.photos.map((photo, idx) => (
-                      <div key={idx} className="aspect-square bg-slate-100 rounded-lg flex items-center justify-center">
-                        <Camera size={24} className="text-slate-400" />
+                      <div key={idx} className="aspect-square bg-slate-100 rounded-lg overflow-hidden">
+                        <img
+                          src={photo}
+                          alt={`维修照片 ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                        {!photo.startsWith('http') && !photo.startsWith('blob:') && (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Camera size={24} className="text-slate-400" />
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -519,12 +591,44 @@ const WorkOrderList: React.FC = () => {
                   </button>
                 )}
                 {selectedWO.status === 'in_progress' && (
-                  <button className="btn btn-success" onClick={() => handleComplete(selectedWO.id)}>
+                  <button className="btn btn-success" onClick={() => setShowCompleteModal(true)}>
                     <CheckCircle size={16} className="mr-2" />
                     完工确认
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCompleteModal && selectedWO && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md animate-slide-up">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">完工确认</h3>
+              <button
+                className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full"
+                onClick={() => setShowCompleteModal(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-slate-600">确认工单「{selectedWO.title}」已完成维修？</p>
+              <div>
+                <label className="label">维修备注</label>
+                <textarea
+                  className="input min-h-[100px] resize-none"
+                  placeholder="请填写维修情况说明..."
+                  value={completeRemark}
+                  onChange={(e) => setCompleteRemark(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
+              <button className="btn btn-secondary" onClick={() => setShowCompleteModal(false)}>取消</button>
+              <button className="btn btn-success" onClick={handleComplete}>确认完工</button>
             </div>
           </div>
         </div>

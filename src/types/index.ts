@@ -84,7 +84,7 @@ export interface MaintenancePlan {
   deviceName: string;
   type: string;
   cycle: number;
-  cycleUnit: 'day' | 'week' | 'month' | 'year';
+  cycleUnit: 'day' | 'week' | 'month' | 'quarter' | 'year';
   lastDate: string;
   nextDate: string;
   status: 'upcoming' | 'overdue' | 'completed';
